@@ -1,0 +1,26 @@
+# Cord — standalone deployment (simplest option).
+#   docker compose up -d --build
+#   => http://localhost:555
+services:
+  chat:
+    build: .
+    image: cord-chat:latest
+    container_name: cord-chat
+    ports:
+      - "555:555"
+    volumes:
+      # Message history survives container re-creation.
+      - chat_data:/app/data
+    # Lets the non-root "node" user bind the privileged port 555.
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:555/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  chat_data:
