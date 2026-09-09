@@ -13,8 +13,8 @@ networks:
     external: true
   backend:
     external: true
-  # Réseau dédié à la communication Portainer Serveur <-> Agents
-  agent_network:
+  # Réseau dédié à la communication Swarmpit App <-> Agents <-> DB
+  swarmpit_net:
     driver: overlay
 
 # Volumes persistants pour conserver les données SQL et les fichiers WordPress/médias
@@ -23,7 +23,10 @@ volumes:
     driver: local
   db_data:
     driver: local
-  portainer_data:
+  # Volumes de données pour Swarmpit (CouchDB + InfluxDB)
+  swarmpit_db_data:
+    driver: local
+  swarmpit_influx_data:
     driver: local
   # Volume local pour l'historique de messages du chat (sur .135)
   chat_data:
@@ -110,15 +113,19 @@ services:
       restart_policy:
         condition: on-failure
 
-  # Service 4 : Portainer Agent (un par nœud, mode global)
-  agent:
-    image: portainer/agent:latest
+  # Service 4 : Swarmpit Agent (un par nœud, mode global)
+  # Collecte les infos Docker de chaque nœud et les remonte à l'app Swarmpit
+  swarmpit-agent:
+    image: swarmpit/agent:latest
+    environment:
+      DOCKER_API_VERSION: "1.35"
+      EVENT_ENDPOINT: http://swarmpit-app:8080/events
+      HEALTH_CHECK_ENDPOINT: http://swarmpit-app:8080/version
     volumes:
       # Nécessaire pour que l'agent parle au démon Docker de SON nœud
       - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker/volumes:/var/lib/docker/volumes
     networks:
-      - agent_network
+      - swarmpit_net
     deploy:
       mode: global
       restart_policy:
@@ -127,29 +134,54 @@ services:
         constraints:
           - node.platform.os == linux
 
-  # Service 5 : Portainer Server (UI d'administration, sur le manager)
-  portainer:
-    image: portainer/portainer-ce:latest
-    command:
-      - -H
-      - tcp://tasks.agent:9001
-      - --tlsskipverify
-    ports:
-      # Interface web demandée sur le port 666
-      - "666:9000"
-      # Interface HTTPS (optionnelle, standard Portainer)
-      - "9443:9443"
+  # Service 5a : Swarmpit CouchDB (stockage de la config/état Swarmpit)
+  swarmpit-db:
+    image: couchdb:2.3.1
     volumes:
-      - portainer_data:/data
+      - swarmpit_db_data:/opt/couchdb/data
     networks:
-      - agent_network
+      - swarmpit_net
     deploy:
-      replicas: 1
-      restart_policy:
-        condition: on-failure
       placement:
         constraints:
           - node.id == m0lv4bzwgvei55titkfxjx3fl
+      restart_policy:
+        condition: on-failure
+
+  # Service 5b : Swarmpit InfluxDB (stockage des métriques)
+  swarmpit-influxdb:
+    image: influxdb:1.8
+    volumes:
+      - swarmpit_influx_data:/var/lib/influxdb
+    networks:
+      - swarmpit_net
+    deploy:
+      placement:
+        constraints:
+          - node.id == m0lv4bzwgvei55titkfxjx3fl
+      restart_policy:
+        condition: on-failure
+
+  # Service 5c : Swarmpit App (UI d'administration, remplace Portainer)
+  swarmpit-app:
+    image: swarmpit/swarmpit:latest
+    environment:
+      SWARMPIT_DB: http://swarmpit-db:5984
+      SWARMPIT_INFLUXDB: http://swarmpit-influxdb:8086
+    ports:
+      # Interface web demandée sur le port 666 (conservé depuis Portainer)
+      - "666:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - swarmpit_net
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.id == m0lv4bzwgvei55titkfxjx3fl
+      restart_policy:
+        condition: on-failure
 
   # Service 6 : Chat (clone de Discord) exposé sur le port 555
   # NOTE : docker stack deploy ignore la directive build — construire l'image
