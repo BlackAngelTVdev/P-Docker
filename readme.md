@@ -22,7 +22,7 @@ Le projet **P-Docker** est un fichier `docker-compose.yml` conçu pour **Docker 
 | 2 | `wordpress` | CMS WordPress (image `fpm-alpine`), connecté au `backend` et au `frontend` |
 | 3 | `nginx` | Reverse proxy qui sert WordPress sur le port `80` |
 | 4 | `agent` | Agent Portainer déployé en mode `global` sur chaque nœud du swarm |
-| 5 | `portainer` | Interface d'administration Portainer, exposée sur le port `666` |
+| 5 | `SwarmPit` | Interface d'administration Portainer, exposée sur le port `666` |
 | 6 | `chat` | Clone de Discord fait maison (`discord-clone`), exposé sur le port `555` |
 
 Tout est pensé pour la **production** : mots de passe injectés via **Docker Secrets** (jamais en clair), réseaux **overlay** séparés (`frontend` / `backend` / `agent_network`), et contraintes de placement pour garder les volumes locaux sur le bon nœud manager.
