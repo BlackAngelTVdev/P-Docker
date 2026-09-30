@@ -37,4 +37,11 @@ Suivi hebdomadaire du temps passé sur le projet (déploiement Docker Swarm : Wo
 
 ---
 
+## Mercredi 30 septembre 2026 
+
+**Objectif** 80%
+
+- mise a jour du kanban
+- mise a jour du JNR
+- Verification du bon fonctionnement 
 ## ⏱️ Total cumulé : 9h
